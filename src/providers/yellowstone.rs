@@ -213,11 +213,11 @@ async fn process_yellowstone_endpoint(
                             },
                             Some(UpdateOneof::Account(update_msg)) => {
                                 if let Some(account) = update_msg.account.as_ref() {
+                                    let pk: Pubkey = Pubkey::new_from_array(account.pubkey.clone().try_into().unwrap());
                                     let wallclock = get_current_timestamp();
                                     let elapsed = start_instant.elapsed();
-                                    let write_version = account.write_version;
                                     let signature = match account.txn_signature.as_ref() {
-                                        Some(sig) => bs58::encode(sig).into_string() + &format!("_wv{}", write_version),
+                                        Some(sig) => bs58::encode(sig).into_string() + pk.to_string().as_str(),
                                         None => {
                                             warn!(endpoint = %endpoint_name, "Missing signature in update");
                                             continue;
