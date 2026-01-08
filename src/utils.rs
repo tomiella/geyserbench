@@ -9,7 +9,7 @@ use std::{
 use tracing::{info, warn};
 
 #[derive(Debug, Clone)]
-pub struct TransactionData {
+pub struct EventData {
     pub wallclock_secs: f64,
     pub elapsed_since_start: Duration,
     pub start_wallclock_secs: f64,
@@ -17,7 +17,7 @@ pub struct TransactionData {
 
 #[derive(Debug)]
 pub struct Comparator {
-    data: DashMap<String, HashMap<String, TransactionData>>,
+    data: DashMap<String, HashMap<String, EventData>>,
     emitted: DashSet<String>,
 }
 
@@ -29,7 +29,7 @@ impl Comparator {
         }
     }
 
-    pub fn add_batch(&self, from: &str, transactions: HashMap<String, TransactionData>) {
+    pub fn add_batch(&self, from: &str, transactions: HashMap<String, EventData>) {
         for (signature, data) in transactions {
             let mut entry = self.data.entry(signature).or_default();
             entry.insert(from.to_owned(), data);
@@ -40,9 +40,9 @@ impl Comparator {
         &self,
         endpoint: &str,
         signature: &str,
-        data: TransactionData,
+        data: EventData,
         expected_producers: usize,
-    ) -> Option<HashMap<String, TransactionData>> {
+    ) -> Option<HashMap<String, EventData>> {
         if expected_producers == 0 {
             return None;
         }
@@ -81,7 +81,7 @@ impl Comparator {
         }
     }
 
-    pub fn iter(&self) -> dashmap::iter::Iter<'_, String, HashMap<String, TransactionData>> {
+    pub fn iter(&self) -> dashmap::iter::Iter<'_, String, HashMap<String, EventData>> {
         self.data.iter()
     }
 }

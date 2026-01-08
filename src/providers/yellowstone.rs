@@ -4,24 +4,23 @@ use futures_util::{sink::SinkExt, stream::StreamExt};
 use solana_pubkey::Pubkey;
 use tokio::task;
 use tonic::transport::ClientTlsConfig;
-use tracing::{Level, error, info, warn};
+use tracing::{error, info, warn, Level};
 
+use crate::proto::geyser::SubscribeRequestFilterAccounts;
 use crate::proto::geyser::{
-    CommitmentLevel, SubscribeRequest, SubscribeRequestFilterTransactions, SubscribeRequestPing,
-    subscribe_update::UpdateOneof,
+    subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequest,
+    SubscribeRequestFilterTransactions, SubscribeRequestPing,
 };
 
 use crate::{
     config::{Config, Endpoint},
-    utils::{TransactionData, get_current_timestamp, open_log_file, write_log_entry},
+    utils::{get_current_timestamp, open_log_file, write_log_entry, EventData},
 };
 
 use super::{
-    GeyserProvider, ProviderContext,
-    common::{
-        TransactionAccumulator, build_signature_envelope, enqueue_signature, fatal_connection_error,
-    },
+    common::{build_signature_envelope, fatal_connection_error, TransactionAccumulator},
     yellowstone_client::GeyserGrpcClient,
+    GeyserProvider, ProviderContext,
 };
 
 pub struct YellowstoneProvider;
@@ -48,15 +47,12 @@ async fn process_yellowstone_endpoint(
         start_wallclock_secs,
         start_instant,
         comparator,
-        signature_tx,
         shared_counter,
         shared_shutdown,
-        target_transactions,
+        target_events,
         total_producers,
         progress,
     } = context;
-
-    let signature_sender = signature_tx;
 
     let account_pubkey = config.account.parse::<Pubkey>()?;
     let endpoint_name = endpoint.name.clone();
@@ -97,20 +93,35 @@ async fn process_yellowstone_endpoint(
     let commitment: CommitmentLevel = config.commitment.into();
 
     let mut transactions = HashMap::new();
-    transactions.insert(
-        "account".to_string(),
-        SubscribeRequestFilterTransactions {
-            account_include: vec![config.account.clone()],
-            account_exclude: vec![],
-            account_required: vec![],
-            ..Default::default()
-        },
-    );
+    let mut accounts = HashMap::new();
+
+    match config.subscribe {
+        crate::config::SubscribeKind::Transactions => {
+            transactions.insert(
+                "account".to_string(),
+                SubscribeRequestFilterTransactions {
+                    account_include: vec![config.account.clone()],
+                    account_exclude: vec![],
+                    account_required: vec![],
+                    ..Default::default()
+                },
+            );
+        }
+        crate::config::SubscribeKind::Account => {
+            accounts.insert(
+                "account_updates".to_string(),
+                SubscribeRequestFilterAccounts {
+                    owner: vec![config.account.clone()],
+                    ..Default::default()
+                },
+            );
+        }
+    }
 
     subscribe_tx
         .send(SubscribeRequest {
             slots: HashMap::default(),
-            accounts: HashMap::default(),
+            accounts,
             transactions,
             transactions_status: HashMap::default(),
             entry: HashMap::default(),
@@ -124,7 +135,7 @@ async fn process_yellowstone_endpoint(
         .await?;
 
     let mut accumulator = TransactionAccumulator::new();
-    let mut transaction_count = 0usize;
+    let mut event_count = 0usize;
 
     loop {
         tokio::select! { biased;
@@ -161,7 +172,7 @@ async fn process_yellowstone_endpoint(
                                                 write_log_entry(file, wallclock, &endpoint_name, &signature)?;
                                             }
 
-                                            let tx_data = TransactionData {
+                                            let event_data = EventData {
                                                 wallclock_secs: wallclock,
                                                 elapsed_since_start: elapsed,
                                                 start_wallclock_secs,
@@ -169,40 +180,91 @@ async fn process_yellowstone_endpoint(
 
                                             let updated = accumulator.record(
                                                 signature.clone(),
-                                                tx_data.clone(),
+                                                event_data.clone(),
                                             );
 
-                                            if updated
-                                                && let Some(envelope) = build_signature_envelope(
+                                            if updated {
+                                                build_signature_envelope(
                                                     &comparator,
                                                     &endpoint_name,
                                                     &signature,
-                                                    tx_data,
-                                                    total_producers,
-                                                ) {
-                                                    if let Some(target) = target_transactions {
-                                                        let shared = shared_counter
-                                                            .fetch_add(1, Ordering::AcqRel)
-                                                            + 1;
-                                                        if let Some(tracker) = progress.as_ref() {
-                                                            tracker.record(shared);
-                                                        }
-                                                        if shared >= target
-                                                            && !shared_shutdown.swap(true, Ordering::AcqRel)
-                                                        {
-                                                            info!(endpoint = %endpoint_name, target, "Reached shared signature target; broadcasting shutdown");
-                                                            let _ = shutdown_tx.send(());
-                                                        }
+                                                    event_data,
+                                                    total_producers
+                                                );
+                                                if let Some(target) = target_events {
+                                                    let shared = shared_counter
+                                                        .fetch_add(1, Ordering::AcqRel)
+                                                        + 1;
+                                                    if let Some(tracker) = progress.as_ref() {
+                                                        tracker.record(shared);
                                                     }
-
-                                                    if let Some(sender) = signature_sender.as_ref() {
-                                                        enqueue_signature(sender, &endpoint_name, &signature, envelope);
+                                                    if shared >= target
+                                                        && !shared_shutdown.swap(true, Ordering::AcqRel)
+                                                    {
+                                                        info!(endpoint = %endpoint_name, target, "Reached shared signature target; broadcasting shutdown");
+                                                        let _ = shutdown_tx.send(());
                                                     }
                                                 }
+                                            }
 
-                                            transaction_count += 1;
+                                            event_count += 1;
                                         }
                                     }
+                            },
+                            Some(UpdateOneof::Account(update_msg)) => {
+                                if let Some(account) = update_msg.account.as_ref() {
+                                    let wallclock = get_current_timestamp();
+                                    let elapsed = start_instant.elapsed();
+                                    let write_version = account.write_version;
+                                    let signature = match account.txn_signature.as_ref() {
+                                        Some(sig) => bs58::encode(sig).into_string() + &format!("_wv{}", write_version),
+                                        None => {
+                                            warn!(endpoint = %endpoint_name, "Missing signature in update");
+                                            continue;
+                                        }
+                                    };
+
+                                    if let Some(file) = log_file.as_mut() {
+                                        write_log_entry(file, wallclock, &endpoint_name, &signature)?;
+                                    }
+
+                                    let event_data = EventData {
+                                        wallclock_secs: wallclock,
+                                        elapsed_since_start: elapsed,
+                                        start_wallclock_secs,
+                                    };
+
+                                    let updated = accumulator.record(
+                                        signature.clone(),
+                                        event_data.clone(),
+                                    );
+
+                                    if updated {
+                                        build_signature_envelope(
+                                            &comparator,
+                                            &endpoint_name,
+                                            &signature,
+                                            event_data,
+                                            total_producers
+                                        );
+                                        if let Some(target) = target_events {
+                                            let shared = shared_counter
+                                                .fetch_add(1, Ordering::AcqRel)
+                                                + 1;
+                                            if let Some(tracker) = progress.as_ref() {
+                                                tracker.record(shared);
+                                            }
+                                            if shared >= target
+                                                && !shared_shutdown.swap(true, Ordering::AcqRel)
+                                            {
+                                                info!(endpoint = %endpoint_name, target, "Reached shared signature target; broadcasting shutdown");
+                                                let _ = shutdown_tx.send(());
+                                            }
+                                        }
+                                    }
+
+                                    event_count += 1;
+                                }
                             },
                             Some(UpdateOneof::Ping(_)) => {
                                 subscribe_tx
@@ -233,7 +295,7 @@ async fn process_yellowstone_endpoint(
     comparator.add_batch(&endpoint_name, collected);
     info!(
         endpoint = %endpoint_name,
-        total_transactions = transaction_count,
+        events = event_count,
         unique_signatures,
         "Stream closed after dispatching transactions"
     );

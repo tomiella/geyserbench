@@ -1,5 +1,5 @@
 use crate::proto::geyser::CommitmentLevel;
-use anyhow::{Context, Result, anyhow};
+use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::{fs, path::Path};
 
@@ -7,15 +7,22 @@ use std::{fs, path::Path};
 pub struct ConfigToml {
     pub config: Config,
     pub endpoint: Vec<Endpoint>,
-    #[serde(default)]
-    pub backend: BackendSettings,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Config {
-    pub transactions: i32,
+    pub events: i32,
+    pub subscribe: SubscribeKind,
     pub account: String,
     pub commitment: ArgsCommitment,
+}
+
+#[derive(Debug, Deserialize, Default, Serialize, Clone, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum SubscribeKind {
+    #[default]
+    Transactions,
+    Account,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -29,14 +36,6 @@ pub struct Endpoint {
 
 fn default_true() -> bool {
     true
-}
-
-#[derive(Debug, Default, Deserialize, Serialize, Clone)]
-pub struct BackendSettings {
-    #[serde(default = "default_true")]
-    pub enabled: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub url: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
@@ -103,7 +102,8 @@ impl ConfigToml {
     pub fn create_default(path: &str) -> Result<Self> {
         let default_config = ConfigToml {
             config: Config {
-                transactions: 1000,
+                events: 1000,
+                subscribe: SubscribeKind::Transactions,
                 account: "pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA".to_string(),
                 commitment: ArgsCommitment::Processed,
             },
@@ -121,7 +121,6 @@ impl ConfigToml {
                     kind: EndpointKind::Arpc,
                 },
             ],
-            backend: BackendSettings::default(),
         };
 
         let toml_string = toml::to_string_pretty(&default_config)

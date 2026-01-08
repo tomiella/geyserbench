@@ -1,6 +1,6 @@
-use crate::utils::{Comparator, TransactionData, percentile};
+use crate::utils::{percentile, Comparator, EventData};
 use comfy_table::{ContentArrangement, Table};
-use serde_json::{Map, Value, json};
+use serde_json::{json, Map, Value};
 use std::cmp::Ordering;
 
 #[cfg(target_os = "windows")]
@@ -220,7 +220,7 @@ pub fn build_metrics_report(summary: &RunSummary) -> Value {
     })
 }
 
-fn diff_ms(tx: &TransactionData, first_tx: &TransactionData) -> f64 {
+fn diff_ms(tx: &EventData, first_tx: &EventData) -> f64 {
     let delta: Duration = tx
         .elapsed_since_start
         .saturating_sub(first_tx.elapsed_since_start);

@@ -1,20 +1,20 @@
-use futures::{SinkExt, channel::mpsc::unbounded};
+use futures::{channel::mpsc::unbounded, SinkExt};
 use futures_util::stream::StreamExt;
 use solana_pubkey::Pubkey;
 use std::{collections::HashMap, error::Error, sync::atomic::Ordering};
 use tokio::task;
-use tracing::{Level, info};
+use tracing::{info, Level};
 
 use crate::{
     config::{Config, Endpoint},
-    utils::{TransactionData, get_current_timestamp, open_log_file, write_log_entry},
+    utils::{get_current_timestamp, open_log_file, write_log_entry, EventData},
 };
 
 use super::{
-    GeyserProvider, ProviderContext,
     common::{
-        TransactionAccumulator, build_signature_envelope, enqueue_signature, fatal_connection_error,
+        build_signature_envelope, enqueue_signature, fatal_connection_error, TransactionAccumulator,
     },
+    GeyserProvider, ProviderContext,
 };
 
 #[allow(clippy::all, dead_code)]
@@ -125,7 +125,7 @@ async fn process_jetstream_endpoint(
                     write_log_entry(file, wallclock, &endpoint_name, &signature)?;
                 }
 
-                let tx_data = TransactionData {
+                let tx_data = EventData {
                     wallclock_secs: wallclock,
                     elapsed_since_start: elapsed,
                     start_wallclock_secs,

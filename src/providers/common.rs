@@ -3,14 +3,11 @@ use std::{collections::HashMap, sync::Arc};
 use crossbeam_queue::ArrayQueue;
 use tracing::{error, warn};
 
-use crate::{
-    backend::{SignatureEnvelope, SignatureObservation},
-    utils::{Comparator, TransactionData},
-};
+use crate::utils::{Comparator, EventData};
 
 #[derive(Default)]
 pub struct TransactionAccumulator {
-    entries: HashMap<String, TransactionData>,
+    entries: HashMap<String, EventData>,
 }
 
 impl TransactionAccumulator {
@@ -20,7 +17,7 @@ impl TransactionAccumulator {
         }
     }
 
-    pub fn record(&mut self, signature: String, data: TransactionData) -> bool {
+    pub fn record(&mut self, signature: String, data: EventData) -> bool {
         use std::collections::hash_map::Entry;
 
         match self.entries.entry(signature) {
@@ -43,7 +40,7 @@ impl TransactionAccumulator {
         self.entries.len()
     }
 
-    pub fn into_inner(self) -> HashMap<String, TransactionData> {
+    pub fn into_inner(self) -> HashMap<String, EventData> {
         self.entries
     }
 }
@@ -58,35 +55,8 @@ pub fn build_signature_envelope(
     comparator: &Arc<Comparator>,
     endpoint: &str,
     signature: &str,
-    data: TransactionData,
+    data: EventData,
     total_producers: usize,
-) -> Option<SignatureEnvelope> {
-    comparator
-        .record_observation(endpoint, signature, data, total_producers)
-        .map(|observations| {
-            let mut payload = observations
-                .into_iter()
-                .map(|(endpoint, tx_data)| SignatureObservation {
-                    endpoint,
-                    timestamp: tx_data.wallclock_secs,
-                    backfilled: tx_data.wallclock_secs < tx_data.start_wallclock_secs,
-                })
-                .collect::<Vec<_>>();
-            payload.sort_by(|lhs, rhs| lhs.endpoint.cmp(&rhs.endpoint));
-            SignatureEnvelope {
-                signature: signature.to_owned(),
-                observations: payload,
-            }
-        })
-}
-
-pub fn enqueue_signature(
-    sender: &Arc<ArrayQueue<SignatureEnvelope>>,
-    endpoint: &str,
-    signature: &str,
-    envelope: SignatureEnvelope,
 ) {
-    if sender.push(envelope).is_err() {
-        warn!(endpoint = endpoint, signature = %signature, "Signature queue full; dropping observation");
-    }
+    comparator.record_observation(endpoint, signature, data, total_producers);
 }

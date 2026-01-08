@@ -2,21 +2,21 @@ use std::{error::Error, sync::atomic::Ordering};
 
 use crate::{
     config::{Config, Endpoint},
-    utils::{TransactionData, get_current_timestamp, open_log_file, write_log_entry},
+    utils::{get_current_timestamp, open_log_file, write_log_entry, EventData},
 };
 use futures_util::stream::StreamExt;
 
 use prost::Message;
 use solana_pubkey::Pubkey;
 use tokio::task;
-use tonic::{Request, Streaming, metadata::MetadataValue, transport::Channel};
-use tracing::{Level, info};
+use tonic::{metadata::MetadataValue, transport::Channel, Request, Streaming};
+use tracing::{info, Level};
 
 use super::{
-    GeyserProvider, ProviderContext,
     common::{
-        TransactionAccumulator, build_signature_envelope, enqueue_signature, fatal_connection_error,
+        build_signature_envelope, enqueue_signature, fatal_connection_error, TransactionAccumulator,
     },
+    GeyserProvider, ProviderContext,
 };
 
 #[allow(clippy::all, dead_code)]
@@ -29,8 +29,8 @@ pub mod publisher {
     include!(concat!(env!("OUT_DIR"), "/publisher.rs"));
 }
 
-use publisher::{StreamResponse, event_publisher_client::EventPublisherClient};
-use thor_streamer::{MessageWrapper, message_wrapper::EventMessage};
+use publisher::{event_publisher_client::EventPublisherClient, StreamResponse};
+use thor_streamer::{message_wrapper::EventMessage, MessageWrapper};
 
 pub struct ThorProvider;
 
@@ -141,7 +141,7 @@ async fn process_thor_endpoint(
                         write_log_entry(file, wallclock, &endpoint_name, &signature)?;
                     }
 
-                    let tx_data = TransactionData {
+                    let tx_data = EventData {
                         wallclock_secs: wallclock,
                         elapsed_since_start: elapsed,
                         start_wallclock_secs,
