@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.6
 
-ARG RUST_VERSION=1.90
+ARG RUST_VERSION=1.94
 ARG CHEF_IMAGE=lukemathwalker/cargo-chef:latest-rust-${RUST_VERSION}-bookworm
 
 FROM ${CHEF_IMAGE} AS planner
