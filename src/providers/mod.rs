@@ -17,6 +17,7 @@ use crate::{
 
 pub mod arpc;
 pub mod common;
+pub mod helius_preprocessed;
 pub mod jetstream;
 pub mod laserstream;
 pub mod shreder;
@@ -45,6 +46,7 @@ pub fn create_provider(kind: &EndpointKind) -> Box<dyn GeyserProvider> {
         EndpointKind::Shredstream => Box::new(shredstream::ShredstreamProvider),
         EndpointKind::Jetstream => Box::new(jetstream::JetstreamProvider),
         EndpointKind::Laserstream => Box::new(laserstream::LaserstreamProvider),
+        EndpointKind::HeliusPreprocessed => Box::new(helius_preprocessed::HeliusPreprocessedProvider),
     }
 }
 

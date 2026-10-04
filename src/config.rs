@@ -50,6 +50,7 @@ pub enum EndpointKind {
     ShrederBinary,
     Jetstream,
     Laserstream,
+    HeliusPreprocessed,
 }
 
 #[derive(Debug, Clone, Copy, Default, Deserialize, Serialize)]
@@ -92,6 +93,7 @@ impl EndpointKind {
             EndpointKind::ShrederBinary => "shreder_binary",
             EndpointKind::Jetstream => "jetstream",
             EndpointKind::Laserstream => "laserstream",
+            EndpointKind::HeliusPreprocessed => "heliuspreprocessed",
         }
     }
 }
