@@ -8,6 +8,7 @@ const PROTO_FILES: &[&str] = &[
     "proto/shredstream.proto",
     "proto/shreder.proto",
     "proto/shreder-binary.proto",
+    "proto/raiden-binary.proto",
     "proto/jetstream.proto",
     "proto/geyser.proto",
     "proto/solana-storage.proto",

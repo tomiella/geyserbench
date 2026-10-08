@@ -31,7 +31,7 @@ use shreder_binary::{
 
 // Decode delivery data without sanitize(): the ordinary Shreder provider also
 // includes transactions that may fail execution or account-index validation.
-fn decode_binary_transaction(
+pub(super) fn decode_binary_transaction(
     raw: &[u8],
     signatures: &[Vec<u8>],
 ) -> anyhow::Result<VersionedTransaction> {

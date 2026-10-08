@@ -49,6 +49,11 @@ url = "http://fra.binary.shreder.xyz:9991"
 kind = "shrederbinary"
 
 [[endpoint]]
+name = "Raiden Pulse FRA"
+url = "http://fra.pulse.raiden.wtf:16000"
+kind = "raidenpulse"
+
+[[endpoint]]
 name = "Shreder Fastlane FRA"
 url = "http://fra.fastlane.shreder.xyz:10000"
 kind = "yellowstone"
@@ -57,7 +62,7 @@ kind = "yellowstone"
 - `config.transactions` sets how many signatures to evaluate (backend streaming automatically disables itself for extremely large runs).
 - `config.account` is the pubkey monitored for transactions during the benchmark.
 - `config.commitment` accepts `processed`, `confirmed`, or `finalized`.
-- Repeat `[[endpoint]]` blocks for each feed. Supported `kind` values: `yellowstone`, `arpc`, `thor`, `shredstream`, `shrederbinary`, `shreder`, and `jetstream`. `x_token` is optional.
+- Repeat `[[endpoint]]` blocks for each feed. Supported `kind` values: `yellowstone`, `arpc`, `thor`, `shredstream`, `shrederbinary`, `raidenpulse`, `shreder`, and `jetstream`. `x_token` is optional.
 
 ## CLI Options
 

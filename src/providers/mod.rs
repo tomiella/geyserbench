@@ -21,6 +21,7 @@ pub mod helius_preprocessed;
 pub mod jetstream;
 pub mod laserstream;
 pub mod shreder;
+pub mod raiden_pulse;
 pub mod shreder_binary;
 pub mod shredstream;
 pub mod thor;
@@ -43,6 +44,7 @@ pub fn create_provider(kind: &EndpointKind) -> Box<dyn GeyserProvider> {
         EndpointKind::Thor => Box::new(thor::ThorProvider),
         EndpointKind::Shreder => Box::new(shreder::ShrederProvider),
         EndpointKind::ShrederBinary => Box::new(shreder_binary::ShrederBinaryProvider),
+        EndpointKind::RaidenPulse => Box::new(raiden_pulse::RaidenPulseProvider),
         EndpointKind::Shredstream => Box::new(shredstream::ShredstreamProvider),
         EndpointKind::Jetstream => Box::new(jetstream::JetstreamProvider),
         EndpointKind::Laserstream => Box::new(laserstream::LaserstreamProvider),
