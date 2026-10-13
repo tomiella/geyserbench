@@ -28,6 +28,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .file_descriptor_set_path(out_dir.join("proto_descriptors.bin"))
         .compile_protos(PROTO_FILES, &includes)?;
 
+    // aRPC v3 reuses the `arpc` package name, so compile it into its own directory.
+    let arpc_v3_out = out_dir.join("arpc_v3");
+    std::fs::create_dir_all(&arpc_v3_out)?;
+    tonic_prost_build::configure()
+        .build_server(false)
+        .out_dir(&arpc_v3_out)
+        .compile_protos(&["proto/arpc-v3/arpc.proto"], &["proto/arpc-v3", include_dir.as_str()])?;
+
     Ok(())
 }
 

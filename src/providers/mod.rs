@@ -16,6 +16,7 @@ use crate::{
 };
 
 pub mod arpc;
+pub mod arpc_v3;
 pub mod common;
 pub mod helius_preprocessed;
 pub mod jetstream;
@@ -41,6 +42,7 @@ pub fn create_provider(kind: &EndpointKind) -> Box<dyn GeyserProvider> {
     match kind {
         EndpointKind::Yellowstone => Box::new(yellowstone::YellowstoneProvider),
         EndpointKind::Arpc => Box::new(arpc::ArpcProvider),
+        EndpointKind::ArpcV3 => Box::new(arpc_v3::ArpcV3Provider),
         EndpointKind::Thor => Box::new(thor::ThorProvider),
         EndpointKind::Shreder => Box::new(shreder::ShrederProvider),
         EndpointKind::ShrederBinary => Box::new(shreder_binary::ShrederBinaryProvider),
