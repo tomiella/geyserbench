@@ -9,7 +9,7 @@ use tonic::{
     metadata::AsciiMetadataValue,
     transport::{Channel, ClientTlsConfig},
 };
-use tracing::{Level, error, info};
+use tracing::{Level, error, info, warn};
 
 use crate::{
     config::{Config, Endpoint},
@@ -109,7 +109,8 @@ async fn process_arpc_v3_endpoint(
                     account_include: vec![account_pubkey.to_bytes().to_vec()],
                     account_exclude: vec![],
                     account_required: vec![],
-                    exclude_votes: true,
+                    // Votes stay included so vote accounts can be benchmarked too.
+                    exclude_votes: false,
                     encoding: TransactionEncoding::Binary as i32,
                 },
             )),
@@ -159,11 +160,23 @@ async fn process_arpc_v3_endpoint(
                         continue;
                     }
                     Some(server_message::Payload::Error(err)) => {
-                        error!(endpoint = %endpoint_name, code = err.code, message = %err.message, "Server error");
+                        let code = arpc::ErrorCode::try_from(err.code)
+                            .map(|c| c.as_str_name().to_string())
+                            .unwrap_or_else(|_| err.code.to_string());
+                        error!(endpoint = %endpoint_name, %code, message = %err.message, "Server error");
+                        continue;
+                    }
+                    Some(server_message::Payload::Gap(gap)) => {
+                        warn!(endpoint = %endpoint_name, from_seq = gap.from_seq, to_seq = gap.to_seq, "Server skipped messages");
                         continue;
                     }
                     _ => continue,
                 };
+
+                if tx.signature.is_empty() {
+                    warn!(endpoint = %endpoint_name, slot = tx.slot, "Missing signature in transaction");
+                    continue;
+                }
 
                 let wallclock = get_current_timestamp();
                 let elapsed = start_instant.elapsed();
