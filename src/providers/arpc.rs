@@ -4,7 +4,7 @@ use futures::{SinkExt, channel::mpsc::unbounded};
 use futures_util::stream::StreamExt;
 use solana_pubkey::Pubkey;
 use tokio::task;
-use tracing::{Level, info};
+use tracing::{Level, error, info};
 
 use crate::{
     config::{Config, Endpoint},
@@ -107,7 +107,17 @@ async fn process_arpc_endpoint(
             }
 
             message = stream.next() => {
-                let Some(Ok(msg)) = message else { continue };
+                let msg = match message {
+                    Some(Ok(msg)) => msg,
+                    Some(Err(status)) => {
+                        error!(endpoint = %endpoint_name, %status, "Stream error");
+                        break;
+                    }
+                    None => {
+                        info!(endpoint = %endpoint_name, "Stream ended");
+                        break;
+                    }
+                };
                 let Some(tx) = msg.transaction else { continue };
 
                 let has_account = tx.account_keys

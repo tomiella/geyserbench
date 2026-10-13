@@ -118,7 +118,11 @@ async fn process_arpc_v3_endpoint(
 
     let (mut subscribe_tx, subscribe_rx) = unbounded::<ClientMessage>();
     subscribe_tx.send(request).await?;
-    let mut stream = client.subscribe(subscribe_rx).await?.into_inner();
+    let mut stream = client
+        .subscribe(subscribe_rx)
+        .await
+        .unwrap_or_else(|status| fatal_connection_error(&endpoint_name, status))
+        .into_inner();
 
     let mut accumulator = TransactionAccumulator::new();
     let mut transaction_count = 0usize;
@@ -144,9 +148,15 @@ async fn process_arpc_v3_endpoint(
                 };
                 let tx = match msg.payload {
                     Some(server_message::Payload::BinaryTransaction(tx)) => tx,
-                    Some(server_message::Payload::Ack(ack)) if !ack.accepted => {
-                        error!(endpoint = %endpoint_name, reason = ack.reason, "Subscription rejected");
-                        break;
+                    Some(server_message::Payload::Ack(ack)) => {
+                        if !ack.accepted {
+                            let reason = arpc::AckReason::try_from(ack.reason)
+                                .map(|r| r.as_str_name().to_string())
+                                .unwrap_or_else(|_| ack.reason.to_string());
+                            fatal_connection_error(&endpoint_name, format!("subscription rejected: {reason}"));
+                        }
+                        info!(endpoint = %endpoint_name, sub_id = ack.sub_id, "Subscription accepted");
+                        continue;
                     }
                     Some(server_message::Payload::Error(err)) => {
                         error!(endpoint = %endpoint_name, code = err.code, message = %err.message, "Server error");
