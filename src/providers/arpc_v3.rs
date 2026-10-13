@@ -4,6 +4,11 @@ use futures::{SinkExt, channel::mpsc::unbounded};
 use futures_util::stream::StreamExt;
 use solana_pubkey::Pubkey;
 use tokio::task;
+use tonic::{
+    Request,
+    metadata::AsciiMetadataValue,
+    transport::{Channel, ClientTlsConfig},
+};
 use tracing::{Level, error, info};
 
 use crate::{
@@ -73,9 +78,27 @@ async fn process_arpc_v3_endpoint(
 
     info!(endpoint = %endpoint_name, url = %endpoint_url, "Connecting");
 
-    let mut client = ARpcClient::connect(endpoint_url.clone())
+    let mut channel = Channel::from_shared(endpoint_url.clone())?;
+    if endpoint_url.starts_with("https://") {
+        channel = channel.tls_config(ClientTlsConfig::new().with_native_roots())?;
+    }
+    let channel = channel
+        .connect()
         .await
         .unwrap_or_else(|err| fatal_connection_error(&endpoint_name, err));
+
+    let x_token = endpoint
+        .x_token
+        .as_deref()
+        .filter(|token| !token.is_empty())
+        .map(AsciiMetadataValue::try_from)
+        .transpose()?;
+    let mut client = ARpcClient::with_interceptor(channel, move |mut request: Request<()>| {
+        if let Some(token) = x_token.clone() {
+            request.metadata_mut().insert("x-token", token);
+        }
+        Ok(request)
+    });
     info!(endpoint = %endpoint_name, "Connected");
 
     let request = ClientMessage {
