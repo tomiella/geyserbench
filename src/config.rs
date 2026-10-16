@@ -53,6 +53,7 @@ pub enum EndpointKind {
     Jetstream,
     Laserstream,
     HeliusPreprocessed,
+    HeliusPreconf,
 }
 
 #[derive(Debug, Clone, Copy, Default, Deserialize, Serialize)]
@@ -98,6 +99,7 @@ impl EndpointKind {
             EndpointKind::Jetstream => "jetstream",
             EndpointKind::Laserstream => "laserstream",
             EndpointKind::HeliusPreprocessed => "heliuspreprocessed",
+            EndpointKind::HeliusPreconf => "heliuspreconf",
         }
     }
 }
